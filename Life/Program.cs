@@ -8,7 +8,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.Drawing.Common;
 
 namespace GameOfLife
 {
