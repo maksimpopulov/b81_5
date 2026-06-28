@@ -1,131 +1,204 @@
-﻿using System;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using cli_life;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Threading;
 
-namespace cli_life
+namespace Life.Tests
 {
-    public class Cell
+    [TestClass]
+    public class UnitTest1
     {
-        public bool IsAlive;
-        public readonly List<Cell> neighbors = new List<Cell>();
-        private bool IsAliveNext;
-        public void DetermineNextLiveState()
+        private Board CreateEmptyBoard(int columns, int rows) =>
+            new Board(columns, rows);
+
+        [TestMethod]
+        public void Cell_Underpopulation_Dies()
         {
-            int liveNeighbors = neighbors.Where(x => x.IsAlive).Count();
-            if (IsAlive)
-                IsAliveNext = liveNeighbors == 2 || liveNeighbors == 3;
-            else
-                IsAliveNext = liveNeighbors == 3;
-        }
-        public void Advance()
-        {
-            IsAlive = IsAliveNext;
-        }
-    }
-    public class Board
-    {
-        public readonly Cell[,] Cells;
-        public readonly int CellSize;
-
-        public int Columns { get { return Cells.GetLength(0); } }
-        public int Rows { get { return Cells.GetLength(1); } }
-        public int Width { get { return Columns * CellSize; } }
-        public int Height { get { return Rows * CellSize; } }
-
-        public Board(int width, int height, int cellSize, double liveDensity = .1)
-        {
-            CellSize = cellSize;
-
-            Cells = new Cell[width / cellSize, height / cellSize];
-            for (int x = 0; x < Columns; x++)
-                for (int y = 0; y < Rows; y++)
-                    Cells[x, y] = new Cell();
-
-            ConnectNeighbors();
-            Randomize(liveDensity);
+            var cell = new Cell { IsAlive = true };
+            cell.neighbors.Add(new Cell { IsAlive = true });
+            cell.DetermineNextLiveState();
+            cell.Advance();
+            Assert.IsFalse(cell.IsAlive);
         }
 
-        readonly Random rand = new Random();
-        public void Randomize(double liveDensity)
+        [TestMethod]
+        public void Cell_Survives_With2Neighbors()
         {
-            foreach (var cell in Cells)
-                cell.IsAlive = rand.NextDouble() < liveDensity;
+            var cell = new Cell { IsAlive = true };
+            for (int i = 0; i < 2; i++)
+                cell.neighbors.Add(new Cell { IsAlive = true });
+            cell.DetermineNextLiveState();
+            cell.Advance();
+            Assert.IsTrue(cell.IsAlive);
         }
 
-        public void Advance()
+        [TestMethod]
+        public void Cell_Survives_With3Neighbors()
         {
-            foreach (var cell in Cells)
-                cell.DetermineNextLiveState();
-            foreach (var cell in Cells)
-                cell.Advance();
+            var cell = new Cell { IsAlive = true };
+            for (int i = 0; i < 3; i++)
+                cell.neighbors.Add(new Cell { IsAlive = true });
+            cell.DetermineNextLiveState();
+            cell.Advance();
+            Assert.IsTrue(cell.IsAlive);
         }
-        private void ConnectNeighbors()
-        {
-            for (int x = 0; x < Columns; x++)
-            {
-                for (int y = 0; y < Rows; y++)
-                {
-                    int xL = (x > 0) ? x - 1 : Columns - 1;
-                    int xR = (x < Columns - 1) ? x + 1 : 0;
 
-                    int yT = (y > 0) ? y - 1 : Rows - 1;
-                    int yB = (y < Rows - 1) ? y + 1 : 0;
+        [TestMethod]
+        public void Cell_Overpopulation_Dies()
+        {
+            var cell = new Cell { IsAlive = true };
+            for (int i = 0; i < 4; i++)
+                cell.neighbors.Add(new Cell { IsAlive = true });
+            cell.DetermineNextLiveState();
+            cell.Advance();
+            Assert.IsFalse(cell.IsAlive);
+        }
 
-                    Cells[x, y].neighbors.Add(Cells[xL, yT]);
-                    Cells[x, y].neighbors.Add(Cells[x, yT]);
-                    Cells[x, y].neighbors.Add(Cells[xR, yT]);
-                    Cells[x, y].neighbors.Add(Cells[xL, y]);
-                    Cells[x, y].neighbors.Add(Cells[xR, y]);
-                    Cells[x, y].neighbors.Add(Cells[xL, yB]);
-                    Cells[x, y].neighbors.Add(Cells[x, yB]);
-                    Cells[x, y].neighbors.Add(Cells[xR, yB]);
-                }
-            }
-        }
-    }
-    class Program
-    {
-        static Board board;
-        static private void Reset()
+        [TestMethod]
+        public void Cell_Reproduction_Born()
         {
-            board = new Board(
-                width: 50,
-                height: 20,
-                cellSize: 1,
-                liveDensity: 0.5);
+            var cell = new Cell { IsAlive = false };
+            for (int i = 0; i < 3; i++)
+                cell.neighbors.Add(new Cell { IsAlive = true });
+            cell.DetermineNextLiveState();
+            cell.Advance();
+            Assert.IsTrue(cell.IsAlive);
         }
-        static void Render()
+
+        [TestMethod]
+        public void Board_Constructor_SetsCorrectDimensions()
         {
-            for (int row = 0; row < board.Rows; row++)
-            {
-                for (int col = 0; col < board.Columns; col++)   
-                {
-                    var cell = board.Cells[col, row];
-                    if (cell.IsAlive)
-                    {
-                        Console.Write('*');
-                    }
-                    else
-                    {
-                        Console.Write(' ');
-                    }
-                }
-                Console.Write('\n');
-            }
+            var board = new Board(80, 40, 1, 0);
+            Assert.AreEqual(80, board.Columns);
+            Assert.AreEqual(40, board.Rows);
         }
-        static void Main(string[] args)
+
+        [TestMethod]
+        public void Board_ConnectNeighbors_EachCellHas8Neighbors()
         {
-            Reset();
-            while(true)
-            {
-                Console.Clear();
-                Render();
-                board.Advance();
-                Thread.Sleep(1000);
-            }
+            var board = CreateEmptyBoard(10, 10);
+            for (int x = 0; x < board.Columns; x++)
+                for (int y = 0; y < board.Rows; y++)
+                    Assert.AreEqual(8, board.Cells[x, y].neighbors.Count);
+        }
+
+        [TestMethod]
+        public void Board_Blinker_Oscillates()
+        {
+            var board = CreateEmptyBoard(5, 5);
+            board.LoadPattern(new[] { "***" }, 1, 2);
+            Assert.AreEqual(3, board.GetAliveCount());
+
+            board.Advance();
+            Assert.AreEqual(3, board.GetAliveCount());
+            Assert.IsTrue(board.Cells[2, 1].IsAlive);
+            Assert.IsTrue(board.Cells[2, 2].IsAlive);
+            Assert.IsTrue(board.Cells[2, 3].IsAlive);
+
+            board.Advance();
+            Assert.AreEqual(3, board.GetAliveCount());
+            Assert.IsTrue(board.Cells[1, 2].IsAlive);
+            Assert.IsTrue(board.Cells[2, 2].IsAlive);
+            Assert.IsTrue(board.Cells[3, 2].IsAlive);
+        }
+
+        [TestMethod]
+        public void Board_Block_IsStable()
+        {
+            var board = CreateEmptyBoard(10, 10);
+            board.LoadPattern(new[] { "**", "**" }, 3, 3);
+            int before = board.GetAliveCount();
+            Assert.AreEqual(4, before);
+            board.Advance();
+            Assert.AreEqual(before, board.GetAliveCount());
+            Assert.IsTrue(board.Cells[3, 3].IsAlive);
+            Assert.IsTrue(board.Cells[4, 3].IsAlive);
+            Assert.IsTrue(board.Cells[3, 4].IsAlive);
+            Assert.IsTrue(board.Cells[4, 4].IsAlive);
+        }
+
+        [TestMethod]
+        public void Board_Glider_Moves()
+        {
+            var board = CreateEmptyBoard(20, 20);
+            board.LoadPattern(new[] { " * ", "  *", "***" }, 5, 5);
+            Assert.AreEqual(5, board.GetAliveCount());
+            board.Advance();
+            Assert.AreEqual(5, board.GetAliveCount());
+        }
+
+        [TestMethod]
+        public void Board_FindClusters_SingleBlock_OneCluster()
+        {
+            var board = CreateEmptyBoard(20, 20);
+            board.LoadPattern(new[] { "**", "**" }, 5, 5);
+            var clusters = board.FindClusters();
+            Assert.AreEqual(1, clusters.Count);
+            Assert.AreEqual(4, clusters[0].Count);
+        }
+
+        [TestMethod]
+        public void Board_FindClusters_TwoSeparateBlocks_TwoClusters()
+        {
+            var board = CreateEmptyBoard(30, 30);
+            board.LoadPattern(new[] { "**", "**" }, 2, 2);
+            board.LoadPattern(new[] { "**", "**" }, 10, 10);
+            var clusters = board.FindClusters();
+            Assert.AreEqual(2, clusters.Count);
+        }
+
+        [TestMethod]
+        public void Board_AllDead_RemainsDead()
+        {
+            var board = CreateEmptyBoard(10, 10);
+            Assert.AreEqual(0, board.GetAliveCount());
+            board.Advance();
+            Assert.AreEqual(0, board.GetAliveCount());
+        }
+
+        [TestMethod]
+        public void Board_AllAlive_DiesQuickly()
+        {
+            var board = CreateEmptyBoard(10, 10);
+            for (int x = 0; x < board.Columns; x++)
+                for (int y = 0; y < board.Rows; y++)
+                    board.Cells[x, y].IsAlive = true;
+            int alive = board.GetAliveCount();
+            Assert.AreEqual(100, alive);
+            board.Advance();
+            Assert.IsTrue(board.GetAliveCount() < alive);
+        }
+
+        [TestMethod]
+        public void Board_TinyBoard_1x1_NoEvolution()
+        {
+            var board = CreateEmptyBoard(1, 1);
+            board.Cells[0, 0].IsAlive = true;
+            board.Advance();
+            Assert.IsFalse(board.Cells[0, 0].IsAlive);
+        }
+
+        [TestMethod]
+        public void Board_TorusConnectivity_NeighborsWrapAround()
+        {
+            var board = CreateEmptyBoard(5, 5);
+            var corner = board.Cells[0, 0];
+            bool hasFarNeighbor = false;
+            foreach (var n in corner.neighbors)
+                if (n == board.Cells[4, 4] || n == board.Cells[4, 0] || n == board.Cells[0, 4])
+                    hasFarNeighbor = true;
+            Assert.IsTrue(hasFarNeighbor);
+            Assert.AreEqual(8, corner.neighbors.Count);
+        }
+
+        [TestMethod]
+        public void Settings_DefaultValues()
+        {
+            var settings = new Settings();
+            Assert.AreEqual(50, settings.Width);
+            Assert.AreEqual(20, settings.Height);
+            Assert.AreEqual(1, settings.CellSize);
+            Assert.AreEqual(0.5, settings.LiveDensity);
+            Assert.AreEqual(500, settings.SleepMs);
         }
     }
 }
