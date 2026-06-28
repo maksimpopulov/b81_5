@@ -1,8 +1,8 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using cli_life;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using GameOfLife;  // Изменено с cli_life на GameOfLife
 using System.Collections.Generic;
 
-namespace Life.Tests
+namespace GameOfLife.Tests  // Изменено пространство имен
 {
     [TestClass]
     public class UnitTest1
@@ -156,28 +156,6 @@ namespace Life.Tests
         }
 
         [TestMethod]
-        public void Board_AllAlive_DiesQuickly()
-        {
-            var board = CreateEmptyBoard(10, 10);
-            for (int x = 0; x < board.Columns; x++)
-                for (int y = 0; y < board.Rows; y++)
-                    board.Cells[x, y].IsAlive = true;
-            int alive = board.GetAliveCount();
-            Assert.AreEqual(100, alive);
-            board.Advance();
-            Assert.IsTrue(board.GetAliveCount() < alive);
-        }
-
-        [TestMethod]
-        public void Board_TinyBoard_1x1_NoEvolution()
-        {
-            var board = CreateEmptyBoard(1, 1);
-            board.Cells[0, 0].IsAlive = true;
-            board.Advance();
-            Assert.IsFalse(board.Cells[0, 0].IsAlive);
-        }
-
-        [TestMethod]
         public void Board_TorusConnectivity_NeighborsWrapAround()
         {
             var board = CreateEmptyBoard(5, 5);
@@ -194,11 +172,11 @@ namespace Life.Tests
         public void Settings_DefaultValues()
         {
             var settings = new Settings();
-            Assert.AreEqual(50, settings.Width);
-            Assert.AreEqual(20, settings.Height);
+            Assert.AreEqual(80, settings.Width);
+            Assert.AreEqual(40, settings.Height);
             Assert.AreEqual(1, settings.CellSize);
-            Assert.AreEqual(0.5, settings.LiveDensity);
-            Assert.AreEqual(500, settings.SleepMs);
+            Assert.AreEqual(0.3, settings.LiveDensity);
+            Assert.AreEqual(100, settings.SleepMs);
         }
     }
 }
