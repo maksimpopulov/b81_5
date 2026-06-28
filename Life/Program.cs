@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Drawing.Common;
 
 namespace GameOfLife
 {
@@ -417,206 +418,6 @@ namespace GameOfLife
             }
         }
 
-        static void SaveSnapshot()
-        {
-            Directory.CreateDirectory("Data");
-
-            string txtPath = Path.Combine("Data", $"snapshot_gen_{generation}.txt");
-            using (var writer = new StreamWriter(txtPath))
-            {
-                writer.WriteLine("=== GAME OF LIFE SNAPSHOT ===");
-                writer.WriteLine($"Generation: {generation}");
-                writer.WriteLine($"Alive cells: {board.GetAliveCount()}");
-                writer.WriteLine($"Date: {DateTime.Now}");
-                writer.WriteLine($"Board size: {board.Columns}x{board.Rows}");
-                writer.WriteLine(new string('=', board.Columns));
-
-                for (int y = 0; y < board.Rows; y++)
-                {
-                    string row = "";
-                    for (int x = 0; x < board.Columns; x++)
-                    {
-                        row += board.Cells[x, y].IsAlive ? '█' : ' ';
-                    }
-                    writer.WriteLine(row);
-                }
-
-                writer.WriteLine(new string('=', board.Columns));
-                var clusters = board.FindClusters();
-                writer.WriteLine($"\nClusters: {clusters.Count}");
-                var classification = board.ClassifyAllFigures();
-                writer.WriteLine("\nClassification:");
-                foreach (var kvp in classification)
-                {
-                    writer.WriteLine($"  {kvp.Key}: {kvp.Value}");
-                }
-            }
-
-            string dataPath = Path.Combine("Data", "data.txt");
-            using (var writer = new StreamWriter(dataPath))
-            {
-                writer.WriteLine("# Density\tGenerationsToStable");
-                writer.WriteLine($"# Date: {DateTime.Now}");
-                writer.WriteLine($"# Board size: {board.Columns}x{board.Rows}");
-                writer.WriteLine("# =============================================");
-
-                if (aliveHistory.Count > 0)
-                {
-                    int totalSteps = Math.Min(aliveHistory.Count, 50);
-                    for (int i = 0; i < totalSteps; i++)
-                    {
-                        double density = 0.05 + (double)i / totalSteps * 0.9;
-                        int generations = aliveHistory[i];
-                        writer.WriteLine($"{density:F3}\t{generations}");
-                    }
-                }
-                else
-                {
-                    Random rand = new Random();
-                    for (double d = 0.05; d <= 0.95; d += 0.05)
-                    {
-                        int gen = 500 - (int)(d * 400) + rand.Next(-30, 30);
-                        if (gen < 10) gen = 10;
-                        writer.WriteLine($"{d:F3}\t{gen}");
-                    }
-                }
-            }
-
-            string plotPath = Path.Combine("Data", "plot.png");
-            CreatePlotPNG(plotPath);
-
-            Console.WriteLine($"\nSnapshot saved:");
-            Console.WriteLine($"Text: {txtPath}");
-            Console.WriteLine($"Data: {dataPath}");
-            Console.WriteLine($"Plot: {plotPath}");
-            Thread.Sleep(1000);
-        }
-
-        static void CreatePlotPNG(string outputPath = "Data/plot.png")
-        {
-            try
-            {
-                int width = 800;
-                int height = 500;
-                int margin = 50;
-
-                using (Bitmap bitmap = new Bitmap(width, height))
-                using (Graphics g = Graphics.FromImage(bitmap))
-                {
-                    g.Clear(Color.White);
-
-                    Font titleFont = new Font("Arial", 14, FontStyle.Bold);
-                    Font axisFont = new Font("Arial", 10);
-                    Brush textBrush = Brushes.Black;
-                    Pen gridPen = new Pen(Color.LightGray, 1);
-                    Pen chartPen = new Pen(Color.Blue, 3);
-
-                    int chartX = margin;
-                    int chartY = margin;
-                    int chartWidth = width - 2 * margin;
-                    int chartHeight = height - 2 * margin;
-
-                    g.DrawLine(Pens.Black, chartX, chartY + chartHeight, chartX + chartWidth, chartY + chartHeight); // X axis
-                    g.DrawLine(Pens.Black, chartX, chartY, chartX, chartY + chartHeight); // Y axis
-
-                    g.DrawString("Density", axisFont, textBrush, width / 2 - 30, height - 25);
-                    g.DrawString("Generations to Stability", axisFont, textBrush, 10, 10);
-
-                    g.DrawString("Stability Transition in Game of Life", titleFont, textBrush, width / 2 - 150, 10);
-
-                    List<(double density, int generations)> data = new List<(double, int)>();
-
-                    string dataFile = "Data/data.txt";
-                    if (File.Exists(dataFile))
-                    {
-                        var lines = File.ReadAllLines(dataFile);
-                        foreach (var line in lines)
-                        {
-                            if (line.StartsWith("#")) continue;
-                            var parts = line.Split('\t');
-                            if (parts.Length == 2)
-                            {
-                                if (double.TryParse(parts[0], out double density) &&
-                                    int.TryParse(parts[1], out int generations))
-                                {
-                                    data.Add((density, generations));
-                                }
-                            }
-                        }
-                    }
-
-                    if (data.Count == 0 && aliveHistory.Count > 0)
-                    {
-                        int totalSteps = Math.Min(aliveHistory.Count, 50);
-                        for (int i = 0; i < totalSteps; i++)
-                        {
-                            double density = 0.05 + (double)i / totalSteps * 0.9;
-                            int generations = aliveHistory[i];
-                            data.Add((density, generations));
-                        }
-                    }
-
-                    if (data.Count == 0)
-                    {
-                        Random rand = new Random();
-                        for (double d = 0.05; d <= 0.95; d += 0.05)
-                        {
-                            int gen = 500 - (int)(d * 400) + rand.Next(-30, 30);
-                            if (gen < 10) gen = 10;
-                            data.Add((d, gen));
-                        }
-                    }
-
-                    if (data.Count == 0) return;
-
-                    double maxDensity = data.Max(d => d.density);
-                    double minDensity = data.Min(d => d.density);
-                    double maxGen = data.Max(d => d.generations);
-                    double minGen = data.Min(d => d.generations);
-
-                    if (maxGen - minGen < 1) maxGen = minGen + 10;
-
-                    for (int i = 0; i <= 10; i++)
-                    {
-                        float xPos = chartX + (float)((double)i / 10 * chartWidth);
-                        float yPos = chartY + (float)((double)i / 10 * chartHeight);
-
-                        if (i > 0 && i < 10)
-                        {
-                            g.DrawLine(gridPen, xPos, chartY, xPos, chartY + chartHeight);
-                            g.DrawLine(gridPen, chartX, yPos, chartX + chartWidth, yPos);
-                        }
-
-                        g.DrawString($"{i / 10.0:F1}", axisFont, textBrush, xPos - 15, chartY + chartHeight + 5);
-                        g.DrawString($"{(int)(minGen + (maxGen - minGen) * (1 - (double)i / 10))}", axisFont, textBrush, chartX - 35, yPos - 8);
-                    }
-
-                    PointF[] points = new PointF[data.Count];
-                    for (int i = 0; i < data.Count; i++)
-                    {
-                        float x = chartX + (float)((data[i].density - minDensity) / (maxDensity - minDensity + 0.01) * chartWidth);
-                        float y = chartY + (float)((1 - (data[i].generations - minGen) / (maxGen - minGen)) * chartHeight);
-                        points[i] = new PointF(x, y);
-                    }
-
-                    g.DrawLines(chartPen, points);
-
-                    foreach (var point in points)
-                    {
-                        g.FillEllipse(Brushes.Red, point.X - 3, point.Y - 3, 6, 6);
-                    }
-
-                    Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
-                    bitmap.Save(outputPath, ImageFormat.Png);
-                    Console.WriteLine($"Plot saved as {outputPath}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error creating plot: {ex.Message}");
-            }
-        }
-
         static void LoadPattern()
         {
             Console.WriteLine("Available patterns:");
@@ -671,150 +472,6 @@ namespace GameOfLife
             aliveHistory.Clear();
         }
 
-        static void RunStabilityExperiment()
-        {
-            Console.WriteLine("\n=== Stability Experiment ===");
-            Console.WriteLine("Testing different densities...");
-
-            var results = new List<(double density, int generationsToStable)>();
-            Directory.CreateDirectory("Data");
-
-            for (double density = 0.05; density <= 0.95; density += 0.05)
-            {
-                settings.LiveDensity = density;
-                Reset();
-
-                int stableGen = 0;
-                int stableCount = 0;
-                int prevAlive = board.GetAliveCount();
-
-                for (int gen = 0; gen < settings.MaxGenerations; gen++)
-                {
-                    board.Advance();
-                    int currentAlive = board.GetAliveCount();
-
-                    if (currentAlive == prevAlive)
-                    {
-                        stableCount++;
-                        if (stableCount >= settings.StableThreshold)
-                        {
-                            stableGen = gen - settings.StableThreshold + 1;
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        stableCount = 0;
-                        prevAlive = currentAlive;
-                    }
-                }
-
-                if (stableGen == 0 && stableCount < settings.StableThreshold)
-                    stableGen = settings.MaxGenerations;
-
-                results.Add((density, stableGen));
-                Console.WriteLine($"Density {density:F2}: Stable after {stableGen} generations");
-            }
-
-            using (var writer = new StreamWriter("Data/data.txt"))
-            {
-                writer.WriteLine("# Density\tGenerationsToStable");
-                writer.WriteLine($"# Date: {DateTime.Now}");
-                writer.WriteLine($"# Board size: {settings.Width}x{settings.Height}");
-                writer.WriteLine($"# Max generations: {settings.MaxGenerations}");
-                writer.WriteLine($"# Stable threshold: {settings.StableThreshold}");
-                writer.WriteLine("# =============================================");
-                foreach (var r in results)
-                {
-                    writer.WriteLine($"{r.density:F3}\t{r.generationsToStable}");
-                }
-            }
-
-            CreatePlotPNGFromResults(results);
-
-            Console.WriteLine("\nData saved to Data/data.txt");
-            Console.WriteLine("Plot saved to Data/plot.png");
-            Console.WriteLine("\nPress any key to continue...");
-            Console.ReadKey();
-        }
-
-        static void CreatePlotPNGFromResults(List<(double density, int generations)> data)
-        {
-            try
-            {
-                int width = 800;
-                int height = 500;
-                int margin = 50;
-
-                using (Bitmap bitmap = new Bitmap(width, height))
-                using (Graphics g = Graphics.FromImage(bitmap))
-                {
-                    g.Clear(Color.White);
-
-                    Font titleFont = new Font("Arial", 14, FontStyle.Bold);
-                    Font axisFont = new Font("Arial", 10);
-                    Brush textBrush = Brushes.Black;
-                    Pen gridPen = new Pen(Color.LightGray, 1);
-                    Pen chartPen = new Pen(Color.Blue, 3);
-
-                    int chartX = margin;
-                    int chartY = margin;
-                    int chartWidth = width - 2 * margin;
-                    int chartHeight = height - 2 * margin;
-
-                    g.DrawLine(Pens.Black, chartX, chartY + chartHeight, chartX + chartWidth, chartY + chartHeight);
-                    g.DrawLine(Pens.Black, chartX, chartY, chartX, chartY + chartHeight);
-
-                    g.DrawString("Density", axisFont, textBrush, width / 2 - 30, height - 25);
-                    g.DrawString("Generations to Stability", axisFont, textBrush, 10, 10);
-                    g.DrawString("Stability Transition in Game of Life", titleFont, textBrush, width / 2 - 150, 10);
-
-                    if (data.Count == 0) return;
-
-                    double maxGen = data.Max(d => d.generations);
-                    double minGen = data.Min(d => d.generations);
-                    if (maxGen - minGen < 1) maxGen = minGen + 10;
-
-                    for (int i = 0; i <= 10; i++)
-                    {
-                        float xPos = chartX + (float)((double)i / 10 * chartWidth);
-                        float yPos = chartY + (float)((double)i / 10 * chartHeight);
-
-                        if (i > 0 && i < 10)
-                        {
-                            g.DrawLine(gridPen, xPos, chartY, xPos, chartY + chartHeight);
-                            g.DrawLine(gridPen, chartX, yPos, chartX + chartWidth, yPos);
-                        }
-
-                        g.DrawString($"{i / 10.0:F1}", axisFont, textBrush, xPos - 15, chartY + chartHeight + 5);
-                        g.DrawString($"{(int)(minGen + (maxGen - minGen) * (1 - (double)i / 10))}", axisFont, textBrush, chartX - 35, yPos - 8);
-                    }
-
-                    PointF[] points = new PointF[data.Count];
-                    for (int i = 0; i < data.Count; i++)
-                    {
-                        float x = chartX + (float)(data[i].density * chartWidth);
-                        float y = chartY + (float)((1 - (data[i].generations - minGen) / (maxGen - minGen)) * chartHeight);
-                        points[i] = new PointF(x, y);
-                    }
-
-                    g.DrawLines(chartPen, points);
-
-                    foreach (var point in points)
-                    {
-                        g.FillEllipse(Brushes.Red, point.X - 3, point.Y - 3, 6, 6);
-                    }
-
-                    bitmap.Save("Data/plot.png", ImageFormat.Png);
-                    Console.WriteLine("Plot saved as Data/plot.png");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error creating plot: {ex.Message}");
-            }
-        }
-
         static void Main(string[] args)
         {
             Console.Title = "Conway's Game of Life";
@@ -826,11 +483,9 @@ namespace GameOfLife
             Console.WriteLine("  ESC - Exit");
             Console.WriteLine("  R - Reset");
             Console.WriteLine("  S - Save state (JSON)");
-            Console.WriteLine("  T - Take snapshot (TXT + PNG)");
             Console.WriteLine("  L - Load state");
             Console.WriteLine("  P - Load pattern");
             Console.WriteLine("  A - Analyze current state");
-            Console.WriteLine("  E - Run stability experiment");
             Console.WriteLine("  Space - Pause/Resume");
             Console.WriteLine("\nPress any key to start...");
             Console.ReadKey();
@@ -879,9 +534,6 @@ namespace GameOfLife
                         case ConsoleKey.S:
                             SaveState();
                             break;
-                        case ConsoleKey.T:
-                            SaveSnapshot();
-                            break;
                         case ConsoleKey.L:
                             LoadState();
                             break;
@@ -890,9 +542,6 @@ namespace GameOfLife
                             break;
                         case ConsoleKey.A:
                             AnalyzeAndReport();
-                            break;
-                        case ConsoleKey.E:
-                            RunStabilityExperiment();
                             break;
                         case ConsoleKey.Spacebar:
                             paused = !paused;
